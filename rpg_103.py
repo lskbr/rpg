@@ -27,6 +27,7 @@ from util import valida_str, valida_int, slow_print, caixa, barra, pausa
 # 0008 - Mais funções, barras de vida, modo sem pausa dev
 # 0009 - Primeiras classes: Configuração, Inimigo, Jogador, Jogo e Partida. Módulos para utilitários.
 # 0010 - Exceção RPGException, lógica do jogo movida para Partida, correções de bugs
+# 0011 - Melhorias na exibição do dano e correção de bugs
 
 
 class RPGException(Exception):
@@ -154,10 +155,6 @@ class Partida:
         if inimigo.morto():
             self.elimina_inimigo(inimigo)
 
-    def danifica_inimigo_posicao(self, posicao: int, dano: int):
-        inimigo = self.pega_inimigo_por_posicao(posicao)
-        self.danifica_inimigo(inimigo, dano)
-
     def rodada_de_super_cura(self) -> bool:
         return self.n_inimigos > 10 and self.n_rodadas != 0 and self.n_rodadas % 10 == 0
 
@@ -168,9 +165,9 @@ class Partida:
         if self.pode_pierce_ataque():
             self.jogador.consome_sp(self.configuracao.sp_pierce)
 
-    def pierce_ataque(self, posicao: int):
-        dano_player = randint(self.configuracao.pierce_dano_min, self.configuracao.pierce_dano_max)
-        self.danifica_inimigo_posicao(posicao, dano_player)
+    def dano_pierce(self) -> int:
+        dano = randint(self.configuracao.pierce_dano_min, self.configuracao.pierce_dano_max)
+        return dano
 
     def tem_inimigos_pra_slash_ataque(self) -> bool:
         return self.n_inimigos >= self.configuracao.slash_inimigos_min
@@ -284,22 +281,22 @@ class Jogo:
         pv_inimigo_antes = escolhido.vida
         self.partida.danifica_inimigo(escolhido, dano)
 
-        slow_print(f' Atacando o inimigo {posicao}', atraso=conf.atraso_metade)
-        slow_print(f"\n Você causou {dano} de dano ao inimigo {posicao} ! "
+        slow_print(f'\n Atacando o inimigo {posicao}', atraso=conf.atraso_metade)
+        slow_print(f" Você causou {dano} de dano ao inimigo {posicao}! "
                    f"({pv_inimigo_antes} - {dano} = {escolhido.vida})", atraso=conf.atraso_metade)
         if escolhido.morto():
             caixa(f'  Você matou o inimigo {posicao}!', borda='x')
             sleep(conf.atraso_metade)
 
     def ataque(self) -> bool:
-        conf = self.configuracao
+        # conf = self.configuracao
         lista_limite = self.partida.posicao_de_inimigos()
         posicao = valida_int(lista_limite,
                              'Selecione um inimigo da lista acima:\n',
                              INIMIGO_FORA_DA_LISTA)
 
         dano_player = self.partida.dano_ataque()
-        self.partida.danifica_inimigo_posicao(posicao, dano_player)
+        self.danifica_inimigo(posicao, dano_player)
         return True
 
     def instrucao(self):
@@ -355,8 +352,9 @@ class Jogo:
         lista_limite = self.partida.posicao_de_inimigos()
         posicao = valida_int(lista_limite, 'Selecione um inimigo da lista acima:\n',
                              INIMIGO_FORA_DA_LISTA)
-        caixa(f'PIERCE ATTACK no inimigo {posicao}')
-        self.partida.pierce_ataque(posicao)
+        dano_player = self.partida.dano_pierce()
+        caixa(f'PIERCE ATTACK !!!')
+        self.danifica_inimigo(posicao, dano_player)
         return True
 
     def slash_ataque(self) -> bool:
@@ -371,9 +369,9 @@ class Jogo:
 
         self.partida.slash()
         opcao = valida_int([1, 2], 'Selecionar inimigos (1) ou AUTO (2):\n')
+        lista_inimigo_s = []
         if opcao == 1:
             lista_limite = self.partida.posicao_de_inimigos()
-            lista_inimigo_s = []
             for cont_slash in range(0, conf.slash_inimigos_min):
                 inimigo_s = valida_int(
                     lista_limite, f"Selecione o {cont_slash + 1}º inimigo da lista acima: \n",
@@ -495,7 +493,7 @@ class Jogo:
         for inimigo in self.partida.inimigos:
             dano = self.partida.dano_inimigo()
             if dano > 0:
-                slow_print(f'Inimigo {inimigo.numero} causou {dano} de dano !',
+                slow_print(f'Inimigo {inimigo.numero} causou {dano} de dano!',
                            self.atraso(self.partida.n_inimigos))
                 soma_dano_inimigo += dano
             else:
@@ -527,7 +525,7 @@ class Jogo:
         print(f'\nNº de inimigos = {self.partida.n_inimigos}')
 
     def imprime_status_do_heroi(self) -> None:
-        print('\n\n===== STATUS DO HERÓI =====')
+        print('\n===== STATUS DO HERÓI =====')
         self.verifica_bonus_de_vida()
         print(f'\n  VIDA = {barra(self.partida.jogador.vida)}')
         print(f'  SP   = {barra(self.partida.jogador.sp)}\n')
@@ -601,6 +599,7 @@ class Jogo:
 
             jogando = jogo.jogar_novamente()
         slow_print('\n--- FIM ---', atraso=jogo.configuracao.atraso_padrao)
+
 
 if __name__ == "__main__":
     configuracao = Configuracao()
